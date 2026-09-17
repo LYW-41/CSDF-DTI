@@ -58,40 +58,9 @@ def split_validation_test(frame, seed, label_column="Y"):
 
 
 def random_protocol_split(frame, seed=2026, label_column="Y"):
-    candidate, train = stratified_rows(frame, 0.2, seed, label_column)
+    candidate, train = stratified_rows(frame, 0.3, seed, label_column)
     valid, test = split_validation_test(candidate, seed + 1, label_column)
     return SplitFrames(train, valid, test, "E1")
-
-
-def sample_entities(values, fraction, seed):
-    unique = np.array(sorted(set(values)))
-    if unique.size < 2:
-        raise ValueError("cold-start splitting requires at least two entities")
-    generator = np.random.default_rng(seed)
-    generator.shuffle(unique)
-    count = max(1, int(round(unique.size * fraction)))
-    count = min(count, unique.size - 1)
-    return set(unique[:count].tolist())
-
-
-def protocol_masks(
-    frame,
-    protocol,
-    unseen_drugs,
-    unseen_proteins,
-    smiles_column,
-    protein_column,
-):
-    drug_unseen = frame[smiles_column].isin(unseen_drugs)
-    protein_unseen = frame[protein_column].isin(unseen_proteins)
-    if protocol == "E2":
-        return drug_unseen, ~drug_unseen
-    if protocol == "E3":
-        return protein_unseen, ~protein_unseen
-    candidate = drug_unseen & protein_unseen
-    training = ~drug_unseen & ~protein_unseen
-    return candidate, training
-
 
 def entity_protocol_split(
     frame,
@@ -100,49 +69,74 @@ def entity_protocol_split(
     smiles_column="SMILES",
     protein_column="Protein",
     label_column="Y",
-    entity_fraction=0.2,
     max_attempts=100,
 ):
     if protocol not in ("E2", "E3", "E4"):
         raise ValueError(f"unsupported entity protocol: {protocol}")
+
     for attempt in range(max_attempts):
         current_seed = seed + attempt
-        unseen_drugs = set()
-        unseen_proteins = set()
-        if protocol in ("E2", "E4"):
-            unseen_drugs = sample_entities(
-                frame[smiles_column],
-                entity_fraction,
-                current_seed,
-            )
-        if protocol in ("E3", "E4"):
-            unseen_proteins = sample_entities(
-                frame[protein_column],
-                entity_fraction,
-                current_seed + 1009,
-            )
-        candidate_mask, train_mask = protocol_masks(
+
+        # Randomly select 20% of interaction pairs as candidate samples.
+        candidate, train = stratified_rows(
             frame,
-            protocol,
-            unseen_drugs,
-            unseen_proteins,
-            smiles_column,
-            protein_column,
+            0.2,
+            current_seed,
+            label_column,
         )
-        candidate = frame.loc[candidate_mask].reset_index(drop=True)
-        train = frame.loc[train_mask].reset_index(drop=True)
-        if candidate.empty or train.empty:
+
+        train_drugs = set(train[smiles_column])
+        train_proteins = set(train[protein_column])
+
+        drug_seen = candidate[smiles_column].isin(train_drugs)
+        protein_seen = candidate[protein_column].isin(train_proteins)
+
+        if protocol == "E2":
+            # Unseen drugs and known proteins.
+            mask = (~drug_seen) & protein_seen
+
+        elif protocol == "E3":
+            # Known drugs and unseen proteins.
+            mask = drug_seen & (~protein_seen)
+
+        else:  # E4
+            # Both drugs and proteins are unseen.
+            mask = (~drug_seen) & (~protein_seen)
+
+        retained = candidate.loc[mask].reset_index(drop=True)
+
+        if retained.empty:
             continue
-        if candidate[label_column].nunique() != 2:
+
+        if retained[label_column].nunique() != 2:
             continue
-        if train[label_column].nunique() != 2:
-            continue
-        valid, test = split_validation_test(candidate, current_seed + 17, label_column)
+
+        # Validation:test = 1:2.
+        valid, test = split_validation_test(
+            retained,
+            current_seed + 17,
+            label_column,
+        )
+
         if valid.empty or test.empty:
             continue
-        return SplitFrames(train, valid, test, protocol)
-    raise RuntimeError(f"unable to construct {protocol} split")
 
+        if valid[label_column].nunique() != 2:
+            continue
+
+        if test[label_column].nunique() != 2:
+            continue
+
+        return SplitFrames(
+            train.reset_index(drop=True),
+            valid.reset_index(drop=True),
+            test.reset_index(drop=True),
+            protocol,
+        )
+
+    raise RuntimeError(
+        f"unable to construct {protocol} split after {max_attempts} attempts"
+    )
 
 def make_protocol_split(
     frame,
@@ -201,15 +195,70 @@ def split_overlap_report(
 
 def validate_protocol(split):
     report = split_overlap_report(split)
-    if split.protocol == "E2" and report["test_drug_overlap"] != 0:
-        raise ValueError("E2 test drugs overlap with training drugs")
-    if split.protocol == "E3" and report["test_protein_overlap"] != 0:
-        raise ValueError("E3 test proteins overlap with training proteins")
-    if split.protocol == "E4":
+
+    if split.protocol == "E2":
+        if report["valid_drug_overlap"] != 0:
+            raise ValueError(
+                "E2 validation drugs overlap with training drugs"
+            )
+
         if report["test_drug_overlap"] != 0:
-            raise ValueError("E4 test drugs overlap with training drugs")
+            raise ValueError(
+                "E2 test drugs overlap with training drugs"
+            )
+
+        if report["valid_protein_overlap"] != report["valid_proteins"]:
+            raise ValueError(
+                "E2 validation contains proteins absent from training"
+            )
+
+        if report["test_protein_overlap"] != report["test_proteins"]:
+            raise ValueError(
+                "E2 test contains proteins absent from training"
+            )
+
+    elif split.protocol == "E3":
+        if report["valid_protein_overlap"] != 0:
+            raise ValueError(
+                "E3 validation proteins overlap with training proteins"
+            )
+
         if report["test_protein_overlap"] != 0:
-            raise ValueError("E4 test proteins overlap with training proteins")
+            raise ValueError(
+                "E3 test proteins overlap with training proteins"
+            )
+
+        if report["valid_drug_overlap"] != report["valid_drugs"]:
+            raise ValueError(
+                "E3 validation contains drugs absent from training"
+            )
+
+        if report["test_drug_overlap"] != report["test_drugs"]:
+            raise ValueError(
+                "E3 test contains drugs absent from training"
+            )
+
+    elif split.protocol == "E4":
+        if report["valid_drug_overlap"] != 0:
+            raise ValueError(
+                "E4 validation drugs overlap with training drugs"
+            )
+
+        if report["test_drug_overlap"] != 0:
+            raise ValueError(
+                "E4 test drugs overlap with training drugs"
+            )
+
+        if report["valid_protein_overlap"] != 0:
+            raise ValueError(
+                "E4 validation proteins overlap with training proteins"
+            )
+
+        if report["test_protein_overlap"] != 0:
+            raise ValueError(
+                "E4 test proteins overlap with training proteins"
+            )
+
     return report
 
 
