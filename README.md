@@ -33,13 +33,16 @@ PyYAML==6.0.3
 matplotlib==3.10.8
 joblib==1.5.3
 ```
+
 ## Data and Evaluation Protocols
 
-The benchmark datasets and data splits used in the experiments are provided
-in `data.zip`. The evaluation protocols are implemented in `protocol.py`.
-E1 denotes the routine evaluation, while E2, E3, and E4 correspond to the
-cold start settings described in the paper. All reported results are based
-on five independent runs.
+The benchmark datasets used in the experiments are provided in `data.zip`. The evaluation protocols are implemented in `protocol.py`.
+
+For E1, interaction pairs are randomly split into training, validation, and test sets at a ratio of 7:1:2. For E2, E3, and E4, 20% of the interaction
+pairs are first selected as candidate evaluation samples, while the remaining 80% form the initial training set. E2 retains pairs with unseen drugs and known proteins, E3 retains pairs with known drugs and unseen proteins, and E4 retains pairs in which both entities are unseen. The retained samples are divided into
+validation and test sets at a ratio of 1:2.
+
+All reported results are based on five independent runs.
 
 ## Run
 
@@ -47,3 +50,6 @@ Example for the Human dataset:
 
 ```bash
 python train.py --data data/Human/sample.csv --protocol E1
+```
+
+Replace `E1` with `E2`, `E3`, or `E4` to run the corresponding cold start evaluation. The checkpoint with the highest validation AUROC is used for final test evaluation.
