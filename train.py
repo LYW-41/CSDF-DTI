@@ -105,7 +105,7 @@ def train_model(
             device,
             train_config.threshold,
         )
-        scheduler.step(valid_metrics["auprc"])
+        scheduler.step(valid_metrics["auroc"])
         record = {
             "epoch": epoch,
             "learning_rate": optimizer.param_groups[0]["lr"],
@@ -114,8 +114,8 @@ def train_model(
         }
         history.append(record)
         print(record)
-        if valid_metrics["auprc"] > best_score:
-            best_score = valid_metrics["auprc"]
+       if valid_metrics["auroc"] > best_score:
+    best_score = valid_metrics["auroc"]
             stale_epochs = 0
             save_checkpoint(
                 output_path,
