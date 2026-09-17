@@ -16,6 +16,14 @@ This repository provides the implementation of a shortcut-aware deep learning fr
 ### Main Dependencies
 
 ```text
+torch==2.7.1
+torch-geometric==2.7.0
+mamba-ssm==2.2.6.post3
+causal-conv1d==1.5.3.post1
+einops==0.8.1
+rdkit==2023.9.6
+aaindex==1.1.2
+
 numpy==1.26.4
 pandas==2.3.3
 scipy==1.15.3
@@ -25,9 +33,17 @@ PyYAML==6.0.3
 matplotlib==3.10.8
 joblib==1.5.3
 ```
+## Data and Evaluation Protocols
+
+The benchmark datasets and data splits used in the experiments are provided
+in `data.zip`. The evaluation protocols are implemented in `protocol.py`.
+E1 denotes the routine evaluation, while E2, E3, and E4 correspond to the
+cold start settings described in the paper. All reported results are based
+on five independent runs.
 
 ## Run
 
+Example for the Human dataset:
+
 ```bash
 python train.py --data data/Human/sample.csv --protocol E1
-```
