@@ -56,7 +56,7 @@ Replace `E1` with `E2`, `E3`, or `E4` to run the corresponding cold start evalua
 
 ### Pretrained checkpoint
 
-The pretrained checkpoint can be downloaded from the Releases page.
+The pretrained checkpoint can be downloaded from the [Releases page](https://github.com/LYW-41/CSDF-DTI/releases).
 
 Checkpoint:
 - Human dataset, E2 cold-start protocol: human_e2_seed42.pth
