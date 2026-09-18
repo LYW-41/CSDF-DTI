@@ -53,3 +53,10 @@ python train.py --data data/Human/sample.csv --protocol E1
 ```
 
 Replace `E1` with `E2`, `E3`, or `E4` to run the corresponding cold start evaluation. The checkpoint with the highest validation AUROC is used for final test evaluation.
+
+### Pretrained checkpoint
+
+The pretrained checkpoint can be downloaded from the Releases page.
+
+Checkpoint:
+- Human dataset, E2 cold-start protocol: human_e2_seed42.pth
