@@ -59,4 +59,18 @@ Replace `E1` with `E2`, `E3`, or `E4` to run the corresponding cold start evalua
 The pretrained checkpoint can be downloaded from the [Releases page](https://github.com/LYW-41/CSDF-DTI/releases).
 
 Checkpoint:
-- Human dataset, E2 cold-start protocol: human_e2_seed42.pth
+
+- Human dataset, E2 cold-start protocol: `human_e2_seed42.pth`
+
+### Using the pretrained checkpoint
+
+The released checkpoint `human_e2_seed42.pth` corresponds to the Human dataset under the E2 cold-start protocol and was selected according to the highest validation AUROC.
+
+Download the checkpoint from the Releases page and evaluate it with:
+
+```bash
+python evaluate.py \
+  --data data/Human/sample.csv \
+  --protocol E2 \
+  --checkpoint human_e2_seed42.pth \
+  --seed 42
